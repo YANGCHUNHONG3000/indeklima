@@ -1,53 +1,55 @@
 # Home Assistant Compliance Checklist
 
-This document shows how Indeklima v2.3.1 follows Home Assistant's official guidelines.
+This document tracks how Indeklima follows Home Assistant's official guidelines.
 
-## ✅ Integration Quality Scale - Silver Tier
+**Last Updated:** May 2026 (v2.4.1)
+
+---
+
+## ✅ Integration Quality Scale — Silver Tier (approaching Gold)
 
 Based on: https://developers.home-assistant.io/docs/integration_quality_scale_index/
 
 ### Bronze Requirements ✅
-- ✅ **Config flow** - Complete UI-based setup
-- ✅ **Async** - All functions are async
-- ✅ **Entity naming** - Follows `has_entity_name = True` standard
-- ✅ **Device info** - All entities have DeviceInfo
-- ✅ **Unique IDs** - All entities have unique_id
-- ✅ **Documentation** - README.md and CHANGELOG.md
-- ✅ **Code style** - Type hints, docstrings
+- ✅ **Config flow** — Complete UI-based setup, no YAML
+- ✅ **Async** — All functions are async, no blocking calls
+- ✅ **Entity naming** — `has_entity_name = True` throughout
+- ✅ **Device info** — All entities have `DeviceInfo`
+- ✅ **Unique IDs** — All entities have `unique_id`
+- ✅ **Documentation** — README.md and CHANGELOG files
+- ✅ **Code style** — Type hints, docstrings, English constants
 
 ### Silver Requirements ✅
-- ✅ **Device registry** - Hub + room devices implemented
-- ✅ **Entity categorization** - Correct device classes
-- ✅ **Options flow** - Adjustable settings
-- ✅ **Translations** - strings.json + da.json
-- ✅ **Error handling** - Try/catch and logging
-- ✅ **Coordinator pattern** - DataUpdateCoordinator used
+- ✅ **Device registry** — Hub + room devices, `via_device` linking
+- ✅ **Entity categorization** — Correct `SensorDeviceClass` per sensor
+- ✅ **Options flow** — Full options flow: thresholds, rooms, weather entity
+- ✅ **Translations** — `strings.json` (EN) + `translations/da.json` (DA)
+- ✅ **Error handling** — `ConfigEntryNotReady`, `UpdateFailed`, try/catch, logging
+- ✅ **Coordinator pattern** — `DataUpdateCoordinator` with 5-min interval
+- ✅ **Quality scale declared** — `quality_scale: silver` in `manifest.json`
 
-### Gold Requirements 🚧
-- 🚧 **Diagnostics** - Planned in v2.4
-- 🚧 **Config entry options** - Partially implemented
-- 🚧 **Test coverage** - Planned
-- 🚧 **Repair issues** - Planned
+### Gold Requirements
+- ✅ **Diagnostics** — Config entry + per-device diagnostics (`diagnostics.py`)
+- ✅ **System health** — Appears in HA system info (`system_health.py`)
+- ✅ **Repair flow** — Actionable issues for sensor/coordinator failures (`repairs.py`)
+- ✅ **Setup failure handling** — `ConfigEntryNotReady` + `UpdateFailed`
+- ✅ **`entry.runtime_data`** — Modern HA pattern, no raw `hass.data` in sensor.py
+- 🔄 **Test coverage >95%** — Tests written, coverage to be verified
 
 ---
 
-## 📋 Entity Guidelines Compliance
+## 📋 Entity Guidelines
 
-Based on: https://developers.home-assistant.io/docs/core/entity/
-
-### Entity Naming ✅
+### Naming ✅
 ```python
-_attr_has_entity_name = True  # Modern naming
-_attr_name = "Status"          # Short name (device name comes automatically)
+_attr_has_entity_name = True
+_attr_name = "Status"  # Device name prepended automatically
 ```
-
-**Result:**
-- `sensor.indeklima_hub_severity_score` (global sensors)
-- `sensor.indeklima_living_room_status` (room sensors)
+Results in: `sensor.indeklima_hub_status`, `sensor.indeklima_stue_humidity`
 
 ### Device Info ✅
 ```python
-_attr_device_info = DeviceInfo(
+DeviceInfo(
     identifiers={(DOMAIN, f"{entry.entry_id}_hub")},
     name="Indeklima Hub",
     manufacturer="Indeklima",
@@ -61,298 +63,171 @@ _attr_device_info = DeviceInfo(
 self._attr_unique_id = f"{entry.entry_id}_{sensor_type}"
 ```
 
-### Device Classes ✅
-```python
-if device_class := config.get("device_class"):
-    self._attr_device_class = SensorDeviceClass(device_class)
-```
-
 ---
 
-## 🗃️ Device Registry Compliance
+## 🗃️ Device Registry
 
-Based on: https://developers.home-assistant.io/docs/device_registry_index/
-
-### Hub Device ✅
-```python
-device_registry.async_get_or_create(
-    config_entry_id=entry.entry_id,
-    identifiers={(DOMAIN, f"{entry.entry_id}_hub")},
-    name="Indeklima Hub",
-    manufacturer="Indeklima",
-    model="Climate Monitor v2",
-    sw_version=__version__,
-)
-```
-
-**Structure:**
 ```
 Indeklima Hub
 ├── Severity Score
 ├── Status
-├── Average Humidity
-├── Trends
-└── ...
-```
+├── Average Humidity / Temperature / CO2 / Pressure
+├── Open Windows
+├── Air Circulation
+├── Trend: Humidity / CO2 / Severity
+└── Ventilation Recommendation
 
-### Room Devices ✅
-```python
-device_registry.async_get_or_create(
-    config_entry_id=entry.entry_id,
-    identifiers={(DOMAIN, f"{entry.entry_id}_room_{room_id}")},
-    name=f"Indeklima {room_name}",
-    via_device=(DOMAIN, f"{entry.entry_id}_hub"),  # Linked to hub
-)
-```
-
-**Structure:**
-```
-Indeklima Living Room (via Indeklima Hub)
+Indeklima Stue  (via Hub)
 ├── Status
 ├── Temperature
 ├── Humidity
-└── CO2
+├── CO2
+└── Pressure
 
-Indeklima Kitchen (via Indeklima Hub)
-├── Status
-└── [attributes]
+Indeklima Soveværelse  (via Hub)
+└── ...
 ```
 
 ---
 
-## 🌍 Translation Compliance
+## 🔄 Data Flow
 
-Based on: https://developers.home-assistant.io/docs/internationalization/core/
-
-### Modern System ✅
-- ✅ `strings.json` - Primary translation file (English)
-- ✅ `translations/da.json` - Danish translations
-
-### Translation Keys ✅
-```json
-{
-  "entity": {
-    "sensor": {
-      "severity": {
-        "name": "Severity score"
-      }
-    }
-  }
-}
+```
+Physical Sensors
+    → HA States
+    → IndeklimaDataCoordinator._async_do_update()
+        ├── _get_sensor_values()  [raises repair issues if unavailable]
+        ├── _calculate_severity()
+        ├── _calculate_trend()
+        ├── _calculate_air_circulation()
+        └── _calculate_ventilation_recommendation()
+    → coordinator.data
+    → CoordinatorEntity sensors update
+    → WebSocket → Sidebar Panel
 ```
 
 ---
 
-## 🔄 Config Flow Compliance
+## 🏗️ Modern HA Patterns Used
 
-Based on: https://developers.home-assistant.io/docs/config_entries_config_flow_handler/
-
-### Initial Setup ✅
+### `entry.runtime_data` ✅ (v2.4.1)
 ```python
-async def async_step_user(...)  # Initial entry point
-async def async_step_room_menu(...)  # Room management
-async def async_step_room_config(...)  # Room configuration
+# async_setup_entry in __init__.py
+entry.runtime_data = coordinator
+
+# sensor.py
+coordinator = entry.runtime_data
 ```
 
-### Unique ID ✅
-```python
-await self.async_set_unique_id("indeklima")
-self._abort_if_unique_id_configured()
-```
-
-### Options Flow ✅
-```python
-@staticmethod
-@callback
-def async_get_options_flow(config_entry):
-    return IndeklimaOptionsFlow(config_entry)
-```
-
----
-
-## 📊 Coordinator Pattern Compliance
-
-Based on: https://developers.home-assistant.io/docs/integration_fetching_data/
-
-### DataUpdateCoordinator ✅
-```python
-class IndeklimaDataCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass, entry):
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(seconds=SCAN_INTERVAL),
-        )
-```
-
-### Efficient Updates ✅
-- ✅ Centralized data fetching
-- ✅ All entities update together
-- ✅ Configurable update interval (5 min)
-- ✅ Error handling in coordinator
-
----
-
-## 🔒 Best Practices Compliance
-
-### Type Hints ✅
-```python
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-```
-
-### Async/Await ✅
-- ✅ All I/O operations are async
-- ✅ No blocking calls
-- ✅ Proper await usage
-
-### Error Handling ✅
+### `ConfigEntryNotReady` ✅
 ```python
 try:
-    humidity_values.append(float(state.state))
-except (ValueError, TypeError):
-    pass
+    await coordinator.async_config_entry_first_refresh()
+except Exception as err:
+    raise ConfigEntryNotReady(...) from err
 ```
 
-### Logging ✅
+### `UpdateFailed` ✅
 ```python
-_LOGGER = logging.getLogger(__name__)
-_LOGGER.info("Indeklima integration v%s setup completed", __version__)
+async def _async_update_data(self):
+    try:
+        result = await self._async_do_update()
+        clear_coordinator_failed_issue(...)
+        return result
+    except Exception as err:
+        raise_coordinator_failed_issue(...)
+        raise UpdateFailed(...) from err
+```
+
+### Repair flow ✅
+```python
+# repairs.py
+async def async_create_fix_flow(hass, issue_id, data) -> RepairsFlow:
+    if issue_id.startswith(ISSUE_SENSOR_UNAVAILABLE):
+        return SensorUnavailableRepairFlow()
+    if issue_id.startswith(ISSUE_COORDINATOR_FAILED):
+        return CoordinatorFailedRepairFlow()
 ```
 
 ---
 
-## 📦 Manifest Compliance
+## 🌍 Translations
 
-Based on: https://developers.home-assistant.io/docs/creating_integration_manifest/
+- `strings.json` — English (primary)
+- `translations/da.json` — Danish
+- Sections: `config`, `options`, `entity`, `system_health`, `issues`
 
-### Required Fields ✅
+All code uses English constants; translations are in JSON only.
+
+---
+
+## 🧪 Testing
+
+```
+tests/
+├── conftest.py         # Shared fixtures and helpers
+├── test_const.py       # version, constants, normalize_room_id
+├── test_init.py        # coordinator: season, severity, status, trends, circulation, sensor values
+├── test_repairs.py     # issue raising/clearing, fix flow factory
+├── test_websocket.py   # WS handlers, room sorting, error paths
+└── test_diagnostics.py # config entry + device diagnostics
+```
+
+Run:
+```bash
+pytest --cov=custom_components/indeklima --cov-report=term-missing
+```
+
+---
+
+## 📦 Manifest
+
 ```json
 {
   "domain": "indeklima",
   "name": "Indeklima",
-  "version": "2.3.1",
+  "version": "2.4.1",
   "config_flow": true,
-  "documentation": "...",
-  "codeowners": ["@kingpainter"],
-  "requirements": [],
-  "dependencies": [],
-  "iot_class": "local_polling",
   "integration_type": "hub",
-  "quality_scale": "silver"
+  "iot_class": "local_polling",
+  "quality_scale": "silver",
+  "codeowners": ["@kingpainter"],
+  "documentation": "https://github.com/kingpainter/indeklima",
+  "issue_tracker": "https://github.com/kingpainter/indeklima/issues",
+  "requirements": [],
+  "dependencies": []
 }
 ```
 
----
-
-## 🎯 Integration Type: Hub
-
-We use `hub` because:
-1. ✅ Central hub device (Indeklima Hub)
-2. ✅ Multiple room devices connected via hub
-3. ✅ Aggregates data from multiple sensors
-4. ✅ Coordinates between devices
+`quality_scale` bumpes til `gold` når test-coverage er verificeret >95%.
 
 ---
 
-## 🌐 Internationalization (v2.3.1)
+## 📈 Severity Scoring
 
-### English Constants ✅
-```python
-# const.py
-STATUS_GOOD: Final = "good"
-STATUS_WARNING: Final = "warning"
-STATUS_CRITICAL: Final = "critical"
-```
+| Metric | Max points |
+|---|---|
+| Humidity (over threshold) | 30 |
+| CO2 (over threshold) | 30 |
+| VOC (over threshold) | 20 |
+| Formaldehyde (over threshold) | 20 |
+| Pressure | 0 — informational only |
+| Air circulation bonus | −5% af samlet score |
 
-### Translation Files ✅
-```json
-// strings.json (English)
-{
-  "entity": {
-    "sensor": {
-      "severity_status": {
-        "state": {
-          "good": "Good",
-          "warning": "Warning",
-          "critical": "Critical"
-        }
-      }
-    }
-  }
-}
-
-// da.json (Danish)
-{
-  "entity": {
-    "sensor": {
-      "severity_status": {
-        "state": {
-          "good": "God",
-          "warning": "Advarsel",
-          "critical": "Dårlig"
-        }
-      }
-    }
-  }
-}
-```
-
-### Benefits ✅
-- ✅ Code in English (HA standard)
-- ✅ Easy to add more languages
-- ✅ No encoding issues
-- ✅ Better international support
+| Score | Status |
+|---|---|
+| 0–29 | Good |
+| 30–59 | Warning |
+| 60–100 | Critical |
 
 ---
 
-## 📈 Roadmap to Gold Tier
-
-### v2.4 Planned
-- [ ] Diagnostics platform
-- [ ] Repair flow for sensor errors
-- [ ] Unit tests (>95% coverage)
-- [ ] Integration tests
-
-### v2.5 Planned
-- [ ] Service calls for device control
-- [ ] Automation triggers
-- [ ] Extended documentation
-
----
-
-## ✅ Summary
-
-**Current Status: Silver Tier**
-
-Indeklima v2.3.1 follows all requirements for Silver tier integration quality scale and implements modern Home Assistant best practices:
-
-- Modern entity naming
-- Device registry with hub/room structure
-- Proper translations (English + Danish)
-- Coordinator pattern
-- Type hints and async
-- Config & Options flows
-- Error handling and logging
-- English constants with JSON translations
-
-**Next Goal: Gold Tier in v2.4**
-
----
-
-## 📚 Reference Links
+## 📚 Reference
 
 - [Integration Quality Scale](https://developers.home-assistant.io/docs/integration_quality_scale_index/)
 - [Entity Guidelines](https://developers.home-assistant.io/docs/core/entity/)
 - [Device Registry](https://developers.home-assistant.io/docs/device_registry_index/)
-- [Internationalization](https://developers.home-assistant.io/docs/internationalization/core/)
+- [Repairs](https://developers.home-assistant.io/docs/repairs/)
+- [Diagnostics](https://developers.home-assistant.io/docs/diagnostics/)
 - [Config Flow](https://developers.home-assistant.io/docs/config_entries_config_flow_handler/)
 - [Data Coordinator](https://developers.home-assistant.io/docs/integration_fetching_data/)
-
----
-
-**Last Updated:** 2025-01-18 (v2.3.1)

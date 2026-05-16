@@ -42,7 +42,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Indeklima sensor based on a config entry."""
-    coordinator: IndeklimaDataCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: IndeklimaDataCoordinator = entry.runtime_data
     
     entities = []
     

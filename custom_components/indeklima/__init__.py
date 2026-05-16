@@ -82,6 +82,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             f"Indeklima failed to load sensor data during setup: {err}"
         ) from err
 
+    # Modern HA pattern: use entry.runtime_data instead of hass.data
+    entry.runtime_data = coordinator
+
+    # Keep hass.data for backwards compatibility with websocket/diagnostics helpers
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
