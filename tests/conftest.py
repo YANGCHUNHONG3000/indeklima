@@ -54,9 +54,11 @@ def mock_entry():
 @pytest.fixture
 def mock_hass():
     """Return a minimal mock HomeAssistant instance."""
-    hass = MagicMock(spec=HomeAssistant)
+    hass = MagicMock()  # No spec — spec blocks attribute access we need
     hass.data = {}
     hass.states = MagicMock()
+    hass.config = MagicMock()
+    hass.config.config_dir = "/tmp/ha_test"
 
     def _get_state(entity_id):
         return None  # unavailable by default
