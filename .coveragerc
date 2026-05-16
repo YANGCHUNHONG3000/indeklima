@@ -1,0 +1,11 @@
+[run]
+omit =
+    custom_components/indeklima/sensor.py
+    custom_components/indeklima/config_flow.py
+    custom_components/indeklima/panel.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if TYPE_CHECKING:

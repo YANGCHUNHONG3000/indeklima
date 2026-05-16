@@ -184,27 +184,23 @@ class TestCalculateTrend:
 
     def test_rising_trend(self, mock_hass, mock_entry):
         coord = self._make_coordinator(mock_hass, mock_entry)
-        # Call multiple times with rising values — no datetime mock needed
-        with patch("custom_components.indeklima.repairs._get_delete_issue", return_value=MagicMock()):
-            coord._calculate_trend("humidity", 30.0)
-            coord._calculate_trend("humidity", 50.0)
-            result = coord._calculate_trend("humidity", 80.0)
+        coord._calculate_trend("humidity", 30.0)
+        coord._calculate_trend("humidity", 50.0)
+        result = coord._calculate_trend("humidity", 80.0)
         assert result == TREND_RISING
 
     def test_falling_trend(self, mock_hass, mock_entry):
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_delete_issue", return_value=MagicMock()):
-            coord._calculate_trend("humidity", 80.0)
-            coord._calculate_trend("humidity", 55.0)
-            result = coord._calculate_trend("humidity", 20.0)
+        coord._calculate_trend("humidity", 80.0)
+        coord._calculate_trend("humidity", 55.0)
+        result = coord._calculate_trend("humidity", 20.0)
         assert result == TREND_FALLING
 
     def test_stable_trend(self, mock_hass, mock_entry):
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_delete_issue", return_value=MagicMock()):
-            coord._calculate_trend("humidity", 50.0)
-            coord._calculate_trend("humidity", 50.0)
-            result = coord._calculate_trend("humidity", 50.0)
+        coord._calculate_trend("humidity", 50.0)
+        coord._calculate_trend("humidity", 50.0)
+        result = coord._calculate_trend("humidity", 50.0)
         assert result == TREND_STABLE
 
 
@@ -276,23 +272,21 @@ class TestGetSensorValues:
     def test_available_sensor_returns_value(self, mock_hass, mock_entry):
         mock_hass.states.get.return_value = make_state("42.5")
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_delete_issue", return_value=MagicMock()):
+        with patch("custom_components.indeklima.clear_sensor_unavailable_issue"):
             values = coord._get_sensor_values(["sensor.test"], "Stue")
         assert values == [42.5]
 
     def test_unavailable_sensor_returns_empty(self, mock_hass, mock_entry):
         mock_hass.states.get.return_value = make_state("unavailable", unavailable=True)
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_create_issue", return_value=MagicMock()), \
-             patch("custom_components.indeklima.repairs._get_issue_severity", return_value=MagicMock()):
+        with patch("custom_components.indeklima.raise_sensor_unavailable_issue"):
             values = coord._get_sensor_values(["sensor.test"], "Stue")
         assert values == []
 
     def test_none_state_returns_empty(self, mock_hass, mock_entry):
         mock_hass.states.get.return_value = None
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_create_issue", return_value=MagicMock()), \
-             patch("custom_components.indeklima.repairs._get_issue_severity", return_value=MagicMock()):
+        with patch("custom_components.indeklima.raise_sensor_unavailable_issue"):
             values = coord._get_sensor_values(["sensor.test"], "Stue")
         assert values == []
 
@@ -301,14 +295,13 @@ class TestGetSensorValues:
             return make_state("40.0") if "a" in entity_id else make_state("60.0")
         mock_hass.states.get.side_effect = get_state
         coord = self._make_coordinator(mock_hass, mock_entry)
-        with patch("custom_components.indeklima.repairs._get_delete_issue", return_value=MagicMock()):
+        with patch("custom_components.indeklima.clear_sensor_unavailable_issue"):
             values = coord._get_sensor_values(["sensor.a", "sensor.b"], "Stue")
         assert values == [40.0, 60.0]
 
     def test_no_room_name_skips_repair(self, mock_hass, mock_entry):
         mock_hass.states.get.return_value = None
         coord = self._make_coordinator(mock_hass, mock_entry)
-        mock_create = MagicMock()
-        with patch("custom_components.indeklima.repairs._get_create_issue", return_value=mock_create):
+        with patch("custom_components.indeklima.raise_sensor_unavailable_issue") as mock_raise:
             coord._get_sensor_values(["sensor.test"])
-        mock_create.assert_not_called()
+        mock_raise.assert_not_called()

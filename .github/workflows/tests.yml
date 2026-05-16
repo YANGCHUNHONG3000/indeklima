@@ -32,6 +32,7 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml \
             --cov-fail-under=60 \
+            --cov-config=.coveragerc \
             -v
 
       - name: Upload coverage report
