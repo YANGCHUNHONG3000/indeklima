@@ -1,5 +1,5 @@
 // Indeklima – Custom Lovelace Cards
-// Version: 2.4.1
+// Version: 2.5.0
 // Cards:
 //   custom:indeklima-room-card   – single room card (mobile/tablet)
 //   custom:indeklima-hub-card    – house overview, original mobile design (vertical)
@@ -75,6 +75,25 @@ function ventColor(v) {
   if (v === "yes")      return "#10b981";
   if (v === "optional") return "#f59e0b";
   return "#64748b";
+}
+
+function moldLabel(m) {
+  if (m === "critical") return "Kritisk skimmelrisiko";
+  if (m === "high")     return "H\u00f8j skimmelrisiko";
+  if (m === "moderate") return "Moderat skimmelrisiko";
+  return "Lav skimmelrisiko";
+}
+
+function moldColor(m) {
+  if (m === "critical") return "#ef4444";
+  if (m === "high")     return "#f97316";
+  if (m === "moderate") return "#f59e0b";
+  return "#10b981";
+}
+
+function moldIcon(m) {
+  if (m === "critical" || m === "high" || m === "moderate") return "\uD83E\uDDA0";
+  return "\u2705";
 }
 
 function baseCSS() {
@@ -167,9 +186,9 @@ class IndeklimaRoomCard extends HTMLElement {
       `<div class="metric"><div class="m-icon">${icon}</div><div class="m-val">${val}</div><div class="m-lbl">${lbl}</div></div>`;
 
     const metrics = r ? [
-      r.temperature_sensors_count > 0 ? metric("&#127777;&#65039;", fmtNum(r.temperature,"°C",1), "Temp") : "",
+      r.temperature_sensors_count > 0 ? metric("&#127777;&#65039;", fmtNum(r.temperature,"\u00b0C",1), "Temp") : "",
       r.humidity_sensors_count    > 0 ? metric("&#128167;", fmtNum(r.humidity,"%"), "Fugt") : "",
-      r.co2_sensors_count         > 0 ? metric("&#127787;&#65039;", fmtNum(r.co2,"ppm"), "CO₂") : "",
+      r.co2_sensors_count         > 0 ? metric("&#127787;&#65039;", fmtNum(r.co2,"ppm"), "CO\u2082") : "",
       (showP && r.pressure_sensors_count > 0) ? metric("&#129517;", fmtNum(r.pressure,"hPa"), "Tryk") : "",
     ].filter(Boolean).join("") : "";
 
@@ -202,6 +221,9 @@ class IndeklimaRoomCard extends HTMLElement {
         .footer { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
         .chip { font-size:10px; background:var(--bg2); padding:3px 7px; border-radius:6px; color:var(--sub); }
         .chip.open { color:#0ea5e9; }
+        .chip.mold-moderate { color:#f59e0b; background:#f59e0b1a; }
+        .chip.mold-high     { color:#f97316; background:#f973161a; }
+        .chip.mold-critical { color:#ef4444; background:#ef44441a; animation:blink 2s infinite; }
         .loading { color:var(--sub); font-size:12px; padding:8px 0; }
       </style>
       <ha-card>
@@ -221,6 +243,7 @@ class IndeklimaRoomCard extends HTMLElement {
               ${r.outdoor_windows_open > 0 ? `<span class="chip open">\uD83E\uDE9F ${r.outdoor_windows_open} vindue${r.outdoor_windows_open>1?"r":""}</span>` : ""}
               ${r.internal_doors_open  > 0 ? `<span class="chip open">\uD83D\uDEAA ${r.internal_doors_open} d\u00f8r${r.internal_doors_open>1?"e":""}</span>` : ""}
               ${r.air_circulation_bonus    ? `<span class="chip open">\uD83D\uDCA8 Bonus aktiv</span>` : ""}
+              ${r.mold_risk && r.mold_risk !== "low" ? `<span class="chip mold-${r.mold_risk}">${moldIcon(r.mold_risk)} ${moldLabel(r.mold_risk)}</span>` : ""}
             </div>`}
         </div>
       </ha-card>`;
@@ -285,7 +308,7 @@ class IndeklimaHubCard extends HTMLElement {
     const roomCards = rooms.map(r => {
       const rc = statusColor(r.status);
       const metrics = [
-        r.temperature_sensors_count > 0 ? `<div class="rc-metric"><div class="rc-val">${fmtNum(r.temperature,"°C",1)}</div><div class="rc-lbl">Temp</div></div>` : "",
+        r.temperature_sensors_count > 0 ? `<div class="rc-metric"><div class="rc-val">${fmtNum(r.temperature,"\u00b0C",1)}</div><div class="rc-lbl">Temp</div></div>` : "",
         r.humidity_sensors_count    > 0 ? `<div class="rc-metric"><div class="rc-val">${fmtNum(r.humidity,"%")}</div><div class="rc-lbl">Fugt</div></div>` : "",
         r.co2_sensors_count         > 0 ? `<div class="rc-metric"><div class="rc-val">${fmtNum(r.co2,"ppm")}</div><div class="rc-lbl">CO\u2082</div></div>` : "",
       ].filter(Boolean).join("");
@@ -293,6 +316,7 @@ class IndeklimaHubCard extends HTMLElement {
         <div class="rc-name">${esc(r.name)}</div>
         <div class="rc-metrics">${metrics}</div>
         <span class="rc-pill" style="background:${rc}22;color:${rc};${r.status!=="good"?"animation:blink 2s infinite;":""}">${statusLabel(r.status)}</span>
+        ${r.mold_risk && r.mold_risk !== "low" ? `<span class="rc-mold" style="background:${moldColor(r.mold_risk)}1a;color:${moldColor(r.mold_risk)}">${moldIcon(r.mold_risk)}</span>` : ""}
       </div>`;
     }).join("");
 
@@ -350,6 +374,7 @@ class IndeklimaHubCard extends HTMLElement {
           font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px;
           text-transform:uppercase; letter-spacing:.4px; flex-shrink:0;
         }
+        .rc-mold  { font-size:14px; flex-shrink:0; }
         .rc-metrics { display:flex; gap:5px; flex-shrink:0; }
         .rc-metric  { text-align:center; min-width:38px; }
         .rc-val     { font-size:12px; font-weight:700; line-height:1.1; }
@@ -398,7 +423,7 @@ class IndeklimaHubCard extends HTMLElement {
               <div class="divider"></div>
               <div class="section-lbl">Gennemsnit</div>
               <div class="avgs">
-                ${avgs.temperature != null ? `<div class="avg-chip"><div class="avg-val">${fmtNum(avgs.temperature,"°C",1)}</div><div class="avg-lbl">Temp</div></div>` : ""}
+                ${avgs.temperature != null ? `<div class="avg-chip"><div class="avg-val">${fmtNum(avgs.temperature,"\u00b0C",1)}</div><div class="avg-lbl">Temp</div></div>` : ""}
                 ${avgs.humidity    != null ? `<div class="avg-chip"><div class="avg-val">${fmtNum(avgs.humidity,"%")}</div><div class="avg-lbl">Fugt</div></div>` : ""}
                 ${avgs.co2         != null ? `<div class="avg-chip"><div class="avg-val">${fmtNum(avgs.co2,"ppm")}</div><div class="avg-lbl">CO\u2082</div></div>` : ""}
               </div>
@@ -462,13 +487,6 @@ if (!customElements.get("indeklima-hub-card")) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // indeklima-tablet-card — landscape 3-column design for tablet/desktop
-// Inspired by pc-user-statistics-tablet-card pattern.
-//
-//  Col 1 (175px): Score ring + averages + ventilation + circulation
-//  Col 2 (flex):  Room rows with inline metrics
-//  Col 3 (150px): Trends + open windows
-//
-// Config: title (optional)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class IndeklimaTabletCard extends HTMLElement {
@@ -528,7 +546,7 @@ class IndeklimaTabletCard extends HTMLElement {
 
       <div class="sec-lbl mt10">Gennemsnit</div>
       <div class="avg-grid">
-        ${avgs.temperature != null ? `<div class="avg-cell"><div class="av">${fmtNum(avgs.temperature,"°C",1)}</div><div class="al">Temp</div></div>` : ""}
+        ${avgs.temperature != null ? `<div class="avg-cell"><div class="av">${fmtNum(avgs.temperature,"\u00b0C",1)}</div><div class="al">Temp</div></div>` : ""}
         ${avgs.humidity    != null ? `<div class="avg-cell"><div class="av">${fmtNum(avgs.humidity,"%")}</div><div class="al">Fugt</div></div>` : ""}
         ${avgs.co2         != null ? `<div class="avg-cell"><div class="av">${fmtNum(avgs.co2,"ppm")}</div><div class="al">CO2</div></div>` : ""}
         ${avgs.pressure    != null ? `<div class="avg-cell"><div class="av">${fmtNum(avgs.pressure,"hPa")}</div><div class="al">Tryk</div></div>` : ""}
@@ -561,9 +579,10 @@ class IndeklimaTabletCard extends HTMLElement {
           <div class="rr-left">
             <div class="rr-name">${esc(r.name)}</div>
             <span class="rr-pill" style="background:${rc}22;color:${rc};${r.status!=="good"?"animation:blink 2s infinite;":""}">${statusLabel(r.status)}</span>
+            ${r.mold_risk && r.mold_risk !== "low" ? `<span class="rr-mold" style="font-size:11px;margin-left:4px;color:${moldColor(r.mold_risk)}">${moldIcon(r.mold_risk)} ${moldLabel(r.mold_risk)}</span>` : ""}
           </div>
           <div class="rr-metrics">
-            ${r.temperature_sensors_count>0?`<div class="rrm"><div class="rrm-v">${fmtNum(r.temperature,"°C",1)}</div><div class="rrm-l">Temp</div></div>`:""}
+            ${r.temperature_sensors_count>0?`<div class="rrm"><div class="rrm-v">${fmtNum(r.temperature,"\u00b0C",1)}</div><div class="rrm-l">Temp</div></div>`:""}
             ${r.humidity_sensors_count>0?`<div class="rrm"><div class="rrm-v">${fmtNum(r.humidity,"%")}</div><div class="rrm-l">Fugt</div></div>`:""}
             ${r.co2_sensors_count>0?`<div class="rrm"><div class="rrm-v">${fmtNum(r.co2,"ppm")}</div><div class="rrm-l">CO2</div></div>`:""}
           </div>
@@ -671,12 +690,13 @@ class IndeklimaTabletCard extends HTMLElement {
           background:var(--bg2); border-radius:12px;
           padding:13px 10px; border-left:4px solid transparent;
         }
-        .rr-left { flex-shrink:0; min-width:100px; }
-        .rr-name { font-size:13px; font-weight:700; margin-bottom:6px; }
+        .rr-left { flex-shrink:0; min-width:120px; }
+        .rr-name { font-size:13px; font-weight:700; margin-bottom:4px; }
         .rr-pill {
           font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px;
           text-transform:uppercase; letter-spacing:.4px; display:inline-block;
         }
+        .rr-mold { display:inline-block; margin-top:3px; }
         @keyframes blink { 0%,100%{opacity:1}50%{opacity:.55} }
 
         .rr-metrics { display:flex; gap:5px; flex:1; }
@@ -736,16 +756,6 @@ if (!customElements.get("indeklima-tablet-card")) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // indeklima-room-detail-card  — rum-specifik detaljekort
-//
-// Viser alt for ét rum: score ring, metrics, tendenser, udluftning, vinduer/døre.
-// Henter data fra BEGGE websocket endpoints:
-//   get_room_data      → rum metrics + status
-//   get_climate_data   → globale tendenser + ventilation (filtreret til dette rum)
-//
-// Config:
-//   room:    "Stuen"               (required – matcher rum-navn i integrationen)
-//   title:   "Stuen"               (optional override)
-//   compact: false                 (optional – skjuler tendenser + vinduer/døre)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class IndeklimaRoomDetailCard extends HTMLElement {
@@ -756,8 +766,8 @@ class IndeklimaRoomDetailCard extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._hass     = null;
-    this._room     = null;   // from get_room_data
-    this._climate  = null;   // from get_climate_data
+    this._room     = null;
+    this._climate  = null;
     this._config   = {};
     this._interval = null;
     this._errCount = 0;
@@ -786,7 +796,6 @@ class IndeklimaRoomDetailCard extends HTMLElement {
   async _load() {
     if (!this._hass) return;
     try {
-      // Load both endpoints in parallel
       const [room, climate] = await Promise.all([
         this._hass.callWS({
           type: `${INDEKLIMA_DOMAIN}/get_room_data`,
@@ -800,7 +809,6 @@ class IndeklimaRoomDetailCard extends HTMLElement {
     } catch (e) {
       this._errCount++;
       this._loadError = e?.message || String(e);
-      console.error("IndeklimaRoomDetailCard load error:", e);
     }
     this._render();
   }
@@ -815,12 +823,15 @@ class IndeklimaRoomDetailCard extends HTMLElement {
     const color   = statusColor(status);
     const sev     = r?.severity || 0;
 
-    // Global trends (shared across all rooms — best available)
     const trends  = cl?.trends  || {};
     const vent    = cl?.ventilation || {};
     const vColor  = ventColor(vent.status);
 
-    // ── Metrics grid ─────────────────────────────────────────────────────────
+    // Mold
+    const mold      = r?.mold_risk || "low";
+    const mColor    = moldColor(mold);
+
+    // ── Metrics grid ──────────────────────────────────────────────────────────
     const metricCell = (icon, val, lbl, highlight) => `
       <div class="metric-cell" style="${highlight ? `border-bottom: 2px solid ${highlight};` : ""}">
         <div class="mc-icon">${icon}</div>
@@ -839,7 +850,7 @@ class IndeklimaRoomDetailCard extends HTMLElement {
         ? metricCell("\uD83E\uDDED", fmtNum(r.pressure, "hPa"), "Lufttryk", "#8b5cf6") : "",
     ].filter(Boolean).join("") : "";
 
-    // ── Severity bar ─────────────────────────────────────────────────────────
+    // ── Severity bar ──────────────────────────────────────────────────────────
     const sevPct = Math.min(100, sev);
     const sevSegments = [
       { w: 30, color: "#10b981" },
@@ -859,6 +870,13 @@ class IndeklimaRoomDetailCard extends HTMLElement {
       winCount === 0 && doorCount === 0
         ? `<span class="chip chip-sub">Ingen \u00e5bne vinduer eller d\u00f8re</span>` : "",
     ].filter(Boolean).join("");
+
+    // ── Mold description ──────────────────────────────────────────────────────
+    const moldDesc =
+      mold === "critical" ? "Fugtniveau er kritisk \u2014 skimmel vokser aktivt. Udluft straks og unders\u00f8g kolde flader."
+      : mold === "high"   ? "H\u00f8j risiko for skimmelvækst. Reducer fugtighed hurtigst muligt."
+      : mold === "moderate" ? "Moderat risiko. Hold \u00f8je med fugtighed og s\u00f8rg for udluftning."
+      : "Fugtindhold er p\u00e5 et sikkert niveau.";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -967,6 +985,19 @@ class IndeklimaRoomDetailCard extends HTMLElement {
         .vent-title { font-size:14px; font-weight:700; color:${vColor}; }
         .vent-sub   { font-size:11px; color:var(--sub); margin-top:2px; }
 
+        /* ── Mold risk ── */
+        .mold-row {
+          display:flex; align-items:flex-start; gap:12px;
+          background:var(--bg2); border-radius:12px; padding:14px;
+          border-left:4px solid ${mColor};
+          background-image: linear-gradient(90deg, ${mColor}0a 0%, transparent 40%);
+        }
+        .mold-icon    { font-size:28px; flex-shrink:0; margin-top:1px; }
+        .mold-body    { flex:1; min-width:0; }
+        .mold-title   { font-size:14px; font-weight:700; color:${mColor}; margin-bottom:4px; }
+        .mold-sub     { font-size:12px; color:var(--sub); line-height:1.5; }
+        .mold-reading { font-size:11px; color:var(--sub); margin-top:6px; opacity:.7; }
+
         /* ── Chips ── */
         .chips-row { display:flex; flex-wrap:wrap; gap:6px; }
         .chip {
@@ -979,9 +1010,7 @@ class IndeklimaRoomDetailCard extends HTMLElement {
         .chip-sub   { background:var(--bg2); color:var(--sub); }
 
         .loading { color:var(--sub); font-size:13px; padding:16px 0; text-align:center; }
-        .load-error {
-          padding:16px 0; text-align:center;
-        }
+        .load-error { padding:16px 0; text-align:center; }
         .err-icon  { font-size:28px; margin-bottom:8px; }
         .err-title { font-size:14px; font-weight:700; color:#ef4444; margin-bottom:4px; }
         .err-sub   { font-size:12px; color:var(--sub); margin-bottom:6px; line-height:1.5; }
@@ -1062,6 +1091,18 @@ class IndeklimaRoomDetailCard extends HTMLElement {
               </div>
             </div>
 
+            <!-- Mold risk -->
+            <div class="divider"></div>
+            <div class="section-lbl">Skimmelrisiko</div>
+            <div class="mold-row">
+              <div class="mold-icon">${moldIcon(mold)}</div>
+              <div class="mold-body">
+                <div class="mold-title">${moldLabel(mold)}</div>
+                <div class="mold-sub">${moldDesc}</div>
+                ${r.mold_humidity != null ? `<div class="mold-reading">Fugtsensor: ${r.mold_humidity.toFixed(1)}\u00a0%</div>` : ""}
+              </div>
+            </div>
+
             ${!compact ? `
               <!-- Windows / doors -->
               <div class="divider"></div>
@@ -1073,7 +1114,7 @@ class IndeklimaRoomDetailCard extends HTMLElement {
       </ha-card>`;
   }
 
-  getCardSize() { return this._config.compact ? 4 : 7; }
+  getCardSize() { return this._config.compact ? 4 : 8; }
 }
 
 if (!customElements.get("indeklima-room-detail-card")) {
@@ -1119,7 +1160,7 @@ if (!window.customCards.find(c => c.type === "indeklima-room-detail-card")) {
   window.customCards.push({
     type:        "indeklima-room-detail-card",
     name:        "Indeklima - Rum detaljer",
-    description: "Detaljekort for \u00e9t rum: score, m\u00e5linger, tendenser, udluftning og vinduer",
+    description: "Detaljekort for \u00e9t rum: score, m\u00e5linger, tendenser, udluftning, skimmelrisiko og vinduer",
     preview:     true,
     documentationURL: "https://github.com/kingpainter/indeklima",
   });

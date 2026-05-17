@@ -1,5 +1,5 @@
 # File Name: websocket.py
-# Version: 2.4.1
+# Version: 2.5.0
 # Description: WebSocket API for the Indeklima panel.
 #              Exposes coordinator data to the frontend panel via HA WebSocket API.
 # Last Updated: March 2026
@@ -57,12 +57,14 @@ def ws_get_climate_data(hass: HomeAssistant, connection, msg) -> None:
                 "humidity":          room_data.get("humidity"),
                 "co2":               room_data.get("co2"),
                 "pressure":          room_data.get("pressure"),
+                "mold_risk":         room_data.get("mold_risk", "low"),
                 "outdoor_windows_open": room_data.get("outdoor_windows_open", 0),
                 "internal_doors_open":  room_data.get("internal_doors_open", 0),
                 "temperature_sensors_count": room_data.get("temperature_sensors_count", 0),
                 "humidity_sensors_count":    room_data.get("humidity_sensors_count", 0),
                 "co2_sensors_count":         room_data.get("co2_sensors_count", 0),
                 "pressure_sensors_count":    room_data.get("pressure_sensors_count", 0),
+                "mold_sensors_count":        room_data.get("mold_sensors_count", 0),
             })
 
         # Sort rooms: critical first, then warning, then good
@@ -87,6 +89,7 @@ def ws_get_climate_data(hass: HomeAssistant, connection, msg) -> None:
                 "co2":         averages.get("co2"),
                 "pressure":    averages.get("pressure"),
             },
+            "mold_risk": data.get("mold_risk", "low"),
             "trends": {
                 "humidity": trends.get("humidity", "stable"),
                 "co2":      trends.get("co2", "stable"),
@@ -140,6 +143,9 @@ def ws_get_room_data(hass: HomeAssistant, connection, msg) -> None:
             "humidity":          room.get("humidity"),
             "co2":               room.get("co2"),
             "pressure":          room.get("pressure"),
+            "mold_risk":         room.get("mold_risk", "low"),
+            "mold_humidity":     room.get("mold_humidity"),
+            "mold_sensors_count": room.get("mold_sensors_count", 0),
             "outdoor_windows_open": room.get("outdoor_windows_open", 0),
             "internal_doors_open":  room.get("internal_doors_open", 0),
             "air_circulation_bonus": room.get("air_circulation_bonus", False),
