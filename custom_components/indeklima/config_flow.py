@@ -1,6 +1,6 @@
 """Config flow for Indeklima integration.
 
-Version: 2.4.1
+Version: 2.5.0
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from .const import (
     CONF_VOC_SENSORS,
     CONF_FORMALDEHYDE_SENSORS,
     CONF_PRESSURE_SENSORS,
+    CONF_MOLD_SENSORS,
     CONF_WINDOW_SENSORS,
     CONF_WINDOW_ENTITY,
     CONF_WINDOW_IS_OUTDOOR,
@@ -134,6 +135,7 @@ class IndeklimaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for key in [CONF_HUMIDITY_SENSORS, CONF_TEMPERATURE_SENSORS,
                        CONF_CO2_SENSORS, CONF_VOC_SENSORS, 
                        CONF_FORMALDEHYDE_SENSORS, CONF_PRESSURE_SENSORS,
+                       CONF_MOLD_SENSORS,
                        CONF_NOTIFICATION_TARGETS]:
                 val = user_input.get(key)
                 if val:
@@ -224,6 +226,9 @@ class IndeklimaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional(CONF_PRESSURE_SENSORS, default=defaults.get(CONF_PRESSURE_SENSORS, [])): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor"], device_class="atmospheric_pressure", multiple=True)
+            ),
+            vol.Optional(CONF_MOLD_SENSORS, default=defaults.get(CONF_MOLD_SENSORS, [])): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor"], device_class="humidity", multiple=True)
             ),
             vol.Optional(CONF_WINDOW_SENSORS, default=window_sensors_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["binary_sensor"], multiple=True)
@@ -364,7 +369,7 @@ class IndeklimaOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             self._temp_room_config = {"name": user_input["name"]}
             
-            for key in [CONF_HUMIDITY_SENSORS, CONF_TEMPERATURE_SENSORS, CONF_CO2_SENSORS, CONF_VOC_SENSORS, CONF_FORMALDEHYDE_SENSORS, CONF_PRESSURE_SENSORS, CONF_NOTIFICATION_TARGETS]:
+            for key in [CONF_HUMIDITY_SENSORS, CONF_TEMPERATURE_SENSORS, CONF_CO2_SENSORS, CONF_VOC_SENSORS, CONF_FORMALDEHYDE_SENSORS, CONF_PRESSURE_SENSORS, CONF_MOLD_SENSORS, CONF_NOTIFICATION_TARGETS]:
                 val = user_input.get(key)
                 if val:
                     self._temp_room_config[key] = val if isinstance(val, list) else [val]
@@ -409,7 +414,7 @@ class IndeklimaOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             self._temp_room_config = {"name": user_input["name"]}
             
-            for key in [CONF_HUMIDITY_SENSORS, CONF_TEMPERATURE_SENSORS, CONF_CO2_SENSORS, CONF_VOC_SENSORS, CONF_FORMALDEHYDE_SENSORS, CONF_PRESSURE_SENSORS, CONF_NOTIFICATION_TARGETS]:
+            for key in [CONF_HUMIDITY_SENSORS, CONF_TEMPERATURE_SENSORS, CONF_CO2_SENSORS, CONF_VOC_SENSORS, CONF_FORMALDEHYDE_SENSORS, CONF_PRESSURE_SENSORS, CONF_MOLD_SENSORS, CONF_NOTIFICATION_TARGETS]:
                 val = user_input.get(key)
                 if val:
                     self._temp_room_config[key] = val if isinstance(val, list) else [val]
@@ -498,6 +503,9 @@ class IndeklimaOptionsFlow(config_entries.OptionsFlow):
             ),
             vol.Optional(CONF_PRESSURE_SENSORS, default=defaults.get(CONF_PRESSURE_SENSORS, [])): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor"], device_class="atmospheric_pressure", multiple=True)
+            ),
+            vol.Optional(CONF_MOLD_SENSORS, default=defaults.get(CONF_MOLD_SENSORS, [])): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor"], device_class="humidity", multiple=True)
             ),
             vol.Optional(CONF_WINDOW_SENSORS, default=window_sensors_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["binary_sensor"], multiple=True)

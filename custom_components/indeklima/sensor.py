@@ -1,6 +1,6 @@
 """Sensor platform for Indeklima integration.
 
-Version: 2.4.1
+Version: 2.5.0
 """
 from __future__ import annotations
 
@@ -24,11 +24,13 @@ from .const import (
     CONF_TEMPERATURE_SENSORS,
     CONF_CO2_SENSORS,
     CONF_PRESSURE_SENSORS,
+    CONF_MOLD_SENSORS,
     STATUS_CRITICAL,
     STATUS_WARNING,
     CIRCULATION_POOR,
     TREND_STABLE,
     VENTILATION_NO,
+    MOLD_RISK_LOW,
     normalize_room_id,
     __version__,
 )
@@ -122,6 +124,18 @@ async def async_setup_entry(
                     "pressure",
                 )
             )
+
+        # Add mold risk sensor (always — calculated from humidity + temp even
+        # without a dedicated mold sensor)
+        entities.append(
+            IndeklimaRoomMetricSensor(
+                coordinator,
+                entry,
+                room_name,
+                room_id,
+                "mold_risk",
+            )
+        )
     
     async_add_entities(entities)
 
@@ -176,6 +190,8 @@ class IndeklimaGlobalSensor(CoordinatorEntity, SensorEntity):
         elif self._sensor_type == "ventilation_recommendation":
             ventilation = self.coordinator.data.get("ventilation", {})
             return ventilation.get("status", VENTILATION_NO)
+        elif self._sensor_type == "mold_risk_avg":
+            return self.coordinator.data.get("mold_risk", MOLD_RISK_LOW)
         elif self._sensor_type.startswith("trend_"):
             # Get trend value
             trend_key = self._sensor_type.replace("trend_", "")
@@ -382,12 +398,15 @@ class IndeklimaRoomMetricSensor(CoordinatorEntity, SensorEntity):
         
         if value is None:
             return None
-        
+
         # Round based on sensor type
         if self._sensor_type == "co2":
             return round(value, 0)
         elif self._sensor_type == "pressure":
             return round(value, 1)
+        elif self._sensor_type == "mold_risk":
+            # mold_risk is a string level — return as-is
+            return value
         else:
             return round(value, 1)
     

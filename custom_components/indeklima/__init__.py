@@ -1,6 +1,6 @@
 """Indeklima integration for Home Assistant.
 
-Version: 2.4.1
+Version: 2.5.0
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from .const import (
     CONF_VOC_SENSORS,
     CONF_FORMALDEHYDE_SENSORS,
     CONF_PRESSURE_SENSORS,
+    CONF_MOLD_SENSORS,
     CONF_WINDOW_SENSORS,
     CONF_WINDOW_ENTITY,
     CONF_WINDOW_IS_OUTDOOR,
@@ -33,11 +34,21 @@ from .const import (
     CONF_CO2_MAX,
     CONF_VOC_MAX,
     CONF_FORMALDEHYDE_MAX,
+    CONF_MOLD_RISK_HUMIDITY,
+    CONF_MOLD_RISK_TEMP_MIN,
+    CONF_MOLD_RISK_TEMP_MAX,
     DEFAULT_HUMIDITY_SUMMER_MAX,
     DEFAULT_HUMIDITY_WINTER_MAX,
     DEFAULT_CO2_MAX,
     DEFAULT_VOC_MAX,
     DEFAULT_FORMALDEHYDE_MAX,
+    DEFAULT_MOLD_RISK_HUMIDITY,
+    DEFAULT_MOLD_RISK_TEMP_MIN,
+    DEFAULT_MOLD_RISK_TEMP_MAX,
+    MOLD_RISK_LOW,
+    MOLD_RISK_MODERATE,
+    MOLD_RISK_HIGH,
+    MOLD_RISK_CRITICAL,
     SCAN_INTERVAL,
     TREND_WINDOW,
     STATUS_GOOD,
@@ -75,12 +86,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Indeklima from a config entry."""
     coordinator = IndeklimaDataCoordinator(hass, entry)
 
+    # Attempt first refresh but do not block setup if sensors are temporarily
+    # unavailable (e.g. right after an HA restart). Sensors will be picked up
+    # on the next 30-second poll cycle instead.
     try:
         await coordinator.async_config_entry_first_refresh()
-    except Exception as err:
-        raise ConfigEntryNotReady(
-            f"Indeklima failed to load sensor data during setup: {err}"
-        ) from err
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning(
+            "Indeklima first refresh incomplete — sensors may be unavailable at boot "
+            "(will retry in %s seconds): %s",
+            SCAN_INTERVAL,
+            err,
+        )
 
     # Modern HA pattern: use entry.runtime_data instead of hass.data
     entry.runtime_data = coordinator
@@ -170,6 +187,17 @@ class IndeklimaDataCoordinator(DataUpdateCoordinator):
             CONF_FORMALDEHYDE_MAX, DEFAULT_FORMALDEHYDE_MAX
         )
 
+        # Mold risk thresholds
+        self.mold_risk_humidity = entry.options.get(
+            CONF_MOLD_RISK_HUMIDITY, DEFAULT_MOLD_RISK_HUMIDITY
+        )
+        self.mold_risk_temp_min = entry.options.get(
+            CONF_MOLD_RISK_TEMP_MIN, DEFAULT_MOLD_RISK_TEMP_MIN
+        )
+        self.mold_risk_temp_max = entry.options.get(
+            CONF_MOLD_RISK_TEMP_MAX, DEFAULT_MOLD_RISK_TEMP_MAX
+        )
+
         # Weather entity
         self.weather_entity = entry.options.get(CONF_WEATHER_ENTITY)
 
@@ -223,6 +251,33 @@ class IndeklimaDataCoordinator(DataUpdateCoordinator):
                         self.hass, self.entry.entry_id, room_name, entity_id
                     )
         return values
+
+    def _calculate_mold_risk(self, humidity: float | None, temperature: float | None) -> str:
+        """Calculate mold risk level from humidity and temperature.
+
+        Mold growth is favoured when:
+          - Relative humidity is sustained above ~70 %
+          - Temperature is between 5 °C and 35 °C
+
+        Returns one of: MOLD_RISK_LOW / MODERATE / HIGH / CRITICAL.
+        """
+        if humidity is None:
+            return MOLD_RISK_LOW
+
+        temp_in_range = True
+        if temperature is not None:
+            temp_in_range = self.mold_risk_temp_min <= temperature <= self.mold_risk_temp_max
+
+        if not temp_in_range:
+            return MOLD_RISK_LOW
+
+        if humidity >= self.mold_risk_humidity + 15:   # ≥85 %
+            return MOLD_RISK_CRITICAL
+        elif humidity >= self.mold_risk_humidity + 5:  # ≥75 %
+            return MOLD_RISK_HIGH
+        elif humidity >= self.mold_risk_humidity:       # ≥70 %
+            return MOLD_RISK_MODERATE
+        return MOLD_RISK_LOW
 
     def _calculate_severity(self, room_data: dict) -> float:
         """Calculate severity score for a room (0-100, lower is better)."""
@@ -468,6 +523,16 @@ class IndeklimaDataCoordinator(DataUpdateCoordinator):
         all_formaldehyde = []
         all_pressure = []
         all_severity = []
+        all_mold_risk_scores: list[int] = []  # numeric representation for averaging
+
+        # Helper: map mold risk level to sortable int
+        _MOLD_SCORE = {
+            MOLD_RISK_LOW: 0,
+            MOLD_RISK_MODERATE: 1,
+            MOLD_RISK_HIGH: 2,
+            MOLD_RISK_CRITICAL: 3,
+        }
+        _MOLD_FROM_SCORE = [MOLD_RISK_LOW, MOLD_RISK_MODERATE, MOLD_RISK_HIGH, MOLD_RISK_CRITICAL]
 
         total_outdoor_windows_open = 0
         total_internal_doors_open = 0
@@ -530,6 +595,23 @@ class IndeklimaDataCoordinator(DataUpdateCoordinator):
                     room_data["pressure"] = avg
                     room_data["pressure_sensors_count"] = len(values)
                     all_pressure.append(avg)
+
+            # Mold sensors (dedicated mold/moisture sensors, optional)
+            if mold_sensors := room.get(CONF_MOLD_SENSORS):
+                values = self._get_sensor_values(mold_sensors, room_name)
+                if values:
+                    avg = sum(values) / len(values)
+                    room_data["mold_humidity"] = avg  # raw humidity from mold sensor
+                    room_data["mold_sensors_count"] = len(values)
+
+            # Calculate mold risk using best available data:
+            # prefer dedicated mold sensor humidity, fall back to room humidity
+            mold_humidity = room_data.get("mold_humidity", room_data.get("humidity"))
+            mold_temp = room_data.get("temperature")
+            room_data["mold_risk"] = self._calculate_mold_risk(mold_humidity, mold_temp)
+
+            # Collect mold risk for global average
+            all_mold_risk_scores.append(_MOLD_SCORE[room_data["mold_risk"]])
 
             # Window/door sensors
             if window_sensors := room.get(CONF_WINDOW_SENSORS, []):
@@ -597,6 +679,13 @@ class IndeklimaDataCoordinator(DataUpdateCoordinator):
 
         # Calculate air circulation
         data["air_circulation"] = self._calculate_air_circulation(total_internal_doors_open)
+
+        # Calculate global mold risk (worst-room level)
+        if all_mold_risk_scores:
+            worst = max(all_mold_risk_scores)
+            data["mold_risk"] = _MOLD_FROM_SCORE[worst]
+        else:
+            data["mold_risk"] = MOLD_RISK_LOW
 
         # Calculate trends
         if all_humidity:

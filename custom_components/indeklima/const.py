@@ -1,10 +1,10 @@
 """Constants for Indeklima integration.
 
-Version: 2.4.1
+Version: 2.5.0
 """
 from typing import Final
 
-__version__ = "2.4.1"
+__version__ = "2.5.0"
 
 DOMAIN: Final = "indeklima"
 
@@ -18,6 +18,7 @@ CONF_VOC_SENSORS: Final = "voc_sensors"
 CONF_FORMALDEHYDE_SENSORS: Final = "formaldehyde_sensors"
 CONF_PRESSURE_SENSORS: Final = "pressure_sensors"
 CONF_WINDOW_SENSORS: Final = "window_sensors"
+CONF_MOLD_SENSORS: Final = "mold_sensors"
 
 # Window/Door configuration
 CONF_WINDOW_ENTITY: Final = "entity_id"
@@ -28,6 +29,11 @@ CONF_DEHUMIDIFIER: Final = "dehumidifier"
 CONF_FAN: Final = "fan"
 CONF_WEATHER_ENTITY: Final = "weather_entity"
 CONF_NOTIFICATION_TARGETS: Final = "notification_targets"
+
+# Mold risk thresholds
+CONF_MOLD_RISK_HUMIDITY: Final = "mold_risk_humidity"
+CONF_MOLD_RISK_TEMP_MIN: Final = "mold_risk_temp_min"
+CONF_MOLD_RISK_TEMP_MAX: Final = "mold_risk_temp_max"
 
 # Thresholds
 CONF_HUMIDITY_SUMMER_MAX: Final = "humidity_summer_max"
@@ -42,6 +48,18 @@ DEFAULT_HUMIDITY_WINTER_MAX: Final = 55
 DEFAULT_CO2_MAX: Final = 1000
 DEFAULT_VOC_MAX: Final = 3.0
 DEFAULT_FORMALDEHYDE_MAX: Final = 0.15
+
+# Mold risk defaults
+# Mold grows when RH > 70% sustained AND temp is between 5-35 °C
+DEFAULT_MOLD_RISK_HUMIDITY: Final = 70   # % RH — sustained threshold
+DEFAULT_MOLD_RISK_TEMP_MIN: Final = 5    # °C — below this mold growth stalls
+DEFAULT_MOLD_RISK_TEMP_MAX: Final = 35   # °C — above this mold growth stalls
+
+# Mold risk levels (English — translated via strings.json)
+MOLD_RISK_LOW: Final = "low"
+MOLD_RISK_MODERATE: Final = "moderate"
+MOLD_RISK_HIGH: Final = "high"
+MOLD_RISK_CRITICAL: Final = "critical"
 
 # Sensor types (Hub sensors)
 SENSOR_TYPES: Final = {
@@ -129,6 +147,12 @@ SENSOR_TYPES: Final = {
         "icon": "mdi:window-open-variant",
         "device_class": None,
     },
+    "mold_risk_avg": {
+        "name": "Mold Risk",
+        "unit": None,
+        "icon": "mdi:mushroom",
+        "device_class": None,
+    },
 }
 
 # Room sensor types (per-room individual sensors)
@@ -163,6 +187,12 @@ ROOM_SENSOR_TYPES: Final = {
         "icon": "mdi:gauge",
         "device_class": "atmospheric_pressure",
     },
+    "mold_risk": {
+        "name": "Mold Risk",
+        "unit": None,
+        "icon": "mdi:mushroom",
+        "device_class": None,
+    },
 }
 
 # Status levels (English - translated via strings.json)
@@ -175,7 +205,9 @@ SEASON_SUMMER: Final = "summer"
 SEASON_WINTER: Final = "winter"
 
 # Update interval
-SCAN_INTERVAL: Final = 300
+# 30 seconds — fast enough for responsive UI without hammering HA state machine.
+# Sensors are already in HA's state machine; this coordinator only reads them.
+SCAN_INTERVAL: Final = 30
 TREND_WINDOW: Final = 900  # 15 minutes
 
 # Notification cooldown
