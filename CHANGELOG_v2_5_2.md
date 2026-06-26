@@ -1,55 +1,48 @@
-# Changelog - Indeklima v2.5.2
+# Changelog — Indeklima v2.5.2
 
-## Version 2.5.2 - Version Sync & Affugter på rum-kort
-
-**Release Date:** June 2026
-**Type:** PATCH — Backend version sync + Frontend fix, backward compatible
-**Previous Version:** 2.5.1
+**Dato:** 2026-06-26
+**Type:** Patch — robusthed, hastighed, UI-fix, tests
 
 ---
 
-## 🔧 Fixes
+## Backend (`__init__.py`)
 
-### Version synkronisering
-Alle backend-filer opdateret til v2.5.2 (var fejlagtigt på 2.5.0):
-- `const.py` — `__version__ = "2.5.2"`
-- `manifest.json` — `"version": "2.5.2"`
-- `websocket.py` — version header opdateret
-- `__init__.py` — version header opdateret
+### Robusthed
+- **Per-rum exception isolation** (`_process_room`): Hvert rum behandles nu i sin egen metode omgivet af `try/except`. En fejlende sensor i ét rum afbryder ikke længere hele opdateringscyklussen — rummet skippes med en warning i loggen.
+- **Korrekt tidshåndtering**: `datetime.now()` og `datetime.utcnow()` erstattet med `dt_util.now()` og `dt_util.utcnow()` alle tre steder (sæson, natperiode-tjek, trend-historik). Sikrer korrekthed ved tidszoneændringer.
 
-### Affugter-sektion tilføjet til `indeklima-room-card`
-Room-kortet manglede affugter-anbefaling. Tilføjet en kompakt `dehum-row` under footer-chips med farve-kodet label og ikon — konsistent med hub/tablet/detail-kortene.
+### Hastighed / kode-kvalitet
+- **Class-level lookup tables**: `_MOLD_SCORE`, `_MOLD_FROM_SCORE`, `_DEHUM_SCORE`, `_DEHUM_FROM_SCORE` er nu class-attributter — defineres én gang ved klasseinitialisering i stedet for ved hvert 30s-kald.
+- **`_process_room()` refaktorering**: Sensor-indsamling samlet i én loop over en tuple frem for 6 næsten-identiske blokke.
+- **Type hints**: Alle list-variabler i `_async_do_update()` har nu eksplicitte type hints.
+- **`_avg()` helper**: Eliminerer gentaget `sum(x)/len(x)` pattern i global-average-beregning.
 
----
+## Frontend (`indeklima-panel.js`)
 
-## 🧪 Tests
+### Encoding-fix (kritisk)
+- Alle brækkede emoji og danske tegn erstattet med korrekte JS Unicode-escapes. Panelet viste hidtil `ð¡ï¸` i stedet for 🌡️, `ð§` i stedet for 💧 osv. Berørte metoder: `_trendIcon`, `_circIcon`, `_ventIcon`, `_dehumIcon`, `_moldIcon`, `_fmt`.
 
-### `test_websocket.py` opdateret
-- Mock-data i `_make_coordinator()` tilføjet `mold_risk`, `dehumidifier_recommendation` og `mold_sensors_count` på alle rum
-- Global `mold_risk` og `dehumidifier_recommendation` tilføjet til top-level coordinator mock
-- 6 nye test-cases:
-  - `test_mold_risk_in_result` — global mold_risk eksponeres i WS-svar
-  - `test_dehumidifier_recommendation_in_result` — global dehumidifier_recommendation eksponeres
-  - `test_room_has_mold_risk_field` — per-rum mold_risk i get_climate_data
-  - `test_room_has_dehumidifier_recommendation_field` — per-rum dehumidifier i get_climate_data
-  - `test_room_data_has_mold_risk` — mold_risk i get_room_data
-  - `test_room_data_has_dehumidifier_recommendation` — dehumidifier_recommendation i get_room_data
+### Logik-fix
+- **Temperatur-trend**: Viste `trends.humidity` som pil på temperatur-kortet — rettet til `showTrend: false` (ingen pil for temperatur).
+- **`_ventExpanded` reset**: Lukkes automatisk ved tab-skift — forhindrer at udluftnings-accordionen sidder åben ved tab-skift.
+- **Sparkline minimumsgrænse**: Hævet fra 2 til 5 datapunkter — eliminerer meningsløse 2-punkt-grafer lige efter opstart.
 
----
+### Øvrige
+- Version-fallback opdateret fra `"2.5.11"` til `"2.5.2"`.
 
-## 📁 Ændrede filer
+## Tests
 
-| Fil | Ændring |
-|---|---|
-| `custom_components/indeklima/const.py` | Version 2.5.2 |
-| `custom_components/indeklima/manifest.json` | Version 2.5.2 |
-| `custom_components/indeklima/websocket.py` | Version header |
-| `custom_components/indeklima/__init__.py` | Version header |
-| `custom_components/indeklima/frontend/indeklima-cards.js` | v2.5.2 — affugter på room-card, CSS dehum-row |
-| `tests/test_websocket.py` | Mock-data + 6 nye tests |
+### Ny fil: `tests/test_coordinator.py`
+37 nye tests der dækker hidtil utestet kode:
+- `TestCalculateMoldRisk` (10 tests): tærskler, temperatur-range, `None`-håndtering, custom tærskler
+- `TestCalculateDehumidifierRecommendation` (9 tests): nat-suppression, mold-niveauer, humidity-tærskel, vindues-logik
+- `TestProcessRoom` (12 tests): sensor-indsamling, gennemsnit, mold fallback, vinduer/døre, dehumidifier, legacy string-format, `None` entity_id
+- `TestAsyncDoUpdate` (6 tests): tom rum-liste, exception isolation, global mold worst-room, cirkulationsbonus, global dehumidifier worst-room
 
----
+### Rettede tests: `tests/test_const.py`
+- `test_version_value`: opdateret til `"2.5.2"`
+- `test_empty_string`: rettet assertion til `"unknown"` (matcher faktisk adfærd i `normalize_room_id`)
 
-## ✅ Backward Compatibility
-
-Ingen API-ændringer. Alle eksisterende automations, dashboards og konfigurationer virker uændret.
+## Versioner
+- `const.py` `__version__`: `2.5.2`
+- `manifest.json` `version`: `2.5.2`

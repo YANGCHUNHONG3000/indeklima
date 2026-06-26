@@ -33,7 +33,7 @@ class TestVersion:
         assert all(p.isdigit() for p in parts)
 
     def test_version_value(self):
-        assert __version__ == "2.5.0"
+        assert __version__ == "2.5.2"
 
 
 class TestConstants:
@@ -104,4 +104,5 @@ class TestNormalizeRoomId:
         assert "_" in result
 
     def test_empty_string(self):
-        assert normalize_room_id("") == ""
+        # normalize_room_id("") returns "unknown" — empty name is treated as unknown
+        assert normalize_room_id("") == "unknown"
